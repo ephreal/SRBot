@@ -1,3 +1,6 @@
 {
-    "per_guild_config": {}
+    "per_guild_config": {},
+    "optional_rolling_rules": {
+        "non-critical_glitch": false
+    }
 }

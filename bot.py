@@ -9,17 +9,30 @@ License.
 
 
 import os
+import sys
 import traceback
 import re
+import logging
 
 from datetime import datetime
 from discord import Game
 from discord.ext import commands
 
 
-def build_bot(prefix):
+def build_bot(prefix, config):
 
     BOT = commands.Bot(command_prefix=prefix)
+    BOT.sr_rules = config['optional_rolling_rules']
+
+    # Configure the bot to log error messages properly
+    BOT.logger = logging.getLogger()
+    if not BOT.logger.handlers:
+        logging.basicConfig(format='%(asctime)s %(message)s',
+                            datefmt='%Y-%m-%d %H:%M:%S')
+        stream_handler = logging.StreamHandler(sys.stdout)
+        BOT.logger.addHandler(stream_handler)
+
+    BOT.logger.info("Logging initialized.")
 
     @BOT.event
     async def on_member_join(member):
@@ -41,10 +54,11 @@ def build_bot(prefix):
         BOT.boot_time = datetime.now()
 
         # Load all cogs
-        print("Startup complete, loading Cogs....")
+        BOT.logger.info("Startup complete, loading cogs.")
         await load_cogs()
-        print("Cog loading complete.")
-        print("Connected to server and awaiting commands.")
+        BOT.logger.info("Cog loading complete.")
+        BOT.logger.info("Connected to server and awaiting commands.")
+        BOT.logger.warn("Bot is ready to receive commands.")
 
         # Set help message
         help_message = Game(name=f"message '{prefix}help' for help")
@@ -69,7 +83,6 @@ def build_bot(prefix):
             await BOT.process_commands(message)
             command = message.content.split()
             command = command[0].replace(BOT.command_prefix, "")
-            await BOT.db_handler.metrics.update_commands(command, 1)
 
         commands = re.findall("{%(.*?)%}", message.content)
         if commands:
@@ -96,40 +109,36 @@ def build_bot(prefix):
 
         for extension in cogs:
             try:
-                print(f"Loading {extension}...")
+                BOT.logger.debug(f"Loading {extension}...")
                 BOT.load_extension(f"cogs.{extension}")
-                print(f"Loaded {extension}")
+                BOT.logger.debug(f"Loaded {extension}")
 
-            except AttributeError as e:
-                print(f"Cog {extension} is malformed. Do you have a setup"
-                      "function?")
-                traceback.print_tb(e.__traceback__)
+            except AttributeError:
+                BOT.logger.critical(f"Cog {extension} is malformed.",
+                                    "Do you have a setup function?")
 
             except ModuleNotFoundError:
-                print(f"Could not find {extension}. Please make sure it "
-                      "exists.")
+                BOT.logger.warn(f"Could not find {extension}.",
+                                "Please make sure it exists.")
 
             except OSError as lib_error:
-                print("Opus is probably not installed")
-                print(f"{lib_error}")
+                BOT.logger.warn("Opus is probably not installed")
+                BOT.logger.warn(f"{lib_error}")
 
             except commands.errors.ExtensionAlreadyLoaded:
-                print(f"The cog {extension} is already loaded.\n"
-                      "Skipping the load process for this cog.")
+                BOT.logger.warn(f"The cog {extension} is already loaded.\n"
+                                "Skipping the load process for this cog.")
 
-            except SyntaxError as e:
-                print(f"The cog {extension} has a syntax error.")
-                traceback.print_tb(e.__traceback__)
+            except SyntaxError:
+                BOT.logger.critical(f"The cog {extension} has a syntax error.")
+                BOT.logger.critical(traceback.format_exc())
 
-            except commands.errors.NoEntryPoint as e:
-                print(f"Cog {extension} has no setup function.")
-                traceback.print_tb(e.__traceback__)
+            except commands.errors.NoEntryPointError:
+                BOT.logger.critical(f"Cog {extension} has no setup function.")
 
     return BOT
 
 
 if __name__ == "__main__":
-    import sys
-    print("The bot must be ran through main.py")
-    print("Please run 'python main.py' instead")
+    print("The bot must be ran with 'python main.py'")
     sys.exit()
