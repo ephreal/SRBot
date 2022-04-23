@@ -21,7 +21,7 @@ class RollingDB():
     def __init__(self, connection):
         self.connection = connection
 
-    def get_last_roll(self, userid):
+    async def get_last_roll(self, userid):
         """
         Searches the database to get the last roll by this user. If no roll
         exists, returns None.
@@ -33,18 +33,23 @@ class RollingDB():
             [roll] or None
         """
 
-        cur = self.connnection.cursor()
+        cur = self.connection.cursor()
 
-        cur.execute("""
-        SELECT (roll, threshold) from rolls where userid = ?
-        """, (userid,))
+        try:
+            cur.execute("""
+            SELECT roll, threshold from rolls where userid = ?
+            """, (userid,))
 
-        self.connection.commit()
-        cur = cur.fetchall()
+            self.connection.commit()
+            cur = cur.fetchall()
 
-        return cur[0][0]
+            return cur[0]
+        except sqlite3.OperationalError:
+            return (None, None)
+        except IndexError:
+            return (None, None)
 
-    def save_roll(self, userid, roll, threshold):
+    async def save_roll(self, userid, roll, threshold):
         """
         Saves the roll and the threshold information to the datavase.
 

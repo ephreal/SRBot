@@ -43,6 +43,23 @@ class GeneralRoll():
         # Generate the message so it's ready to go.
         await self.formatted_message()
 
+    async def reroll(self, saved):
+        """
+        Runs a reroll with the dice passed in.
+        """
+
+        self.rolls = await roll(self.dice)
+        self.rolls.extend(saved)
+        self.rolls.sort()
+
+        self.dice += len(saved)
+
+        self.hits = await hits(self.rolls, self.threshold)
+        self.critical_glitch = await critical_glitch(self.rolls)
+        self.glitch = await glitch(self.rolls)
+
+        await self.formatted_message()
+
     async def formatted_message(self):
         """
         Creates and returns a formatted message.

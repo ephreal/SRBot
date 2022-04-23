@@ -32,11 +32,35 @@ class Rolling(commands.Cog):
 
         roll = await sr3e.general_roll(dice, threshold)
         userid = ctx.author.id
-        self.db_handler.save_roll(userid, roll.rolls, threshold)
+        await self.db_handler.save_roll(userid, roll.rolls, threshold)
         embed = await build_embed(ctx, roll.title, roll.message,
                                   footer=roll.footer)
 
         await ctx.send(embed=embed)
+
+    @commands.command(aliases=['rr'])
+    async def reroll(self, ctx):
+        """
+        Rerolls your last roll.
+        """
+
+        userid = ctx.author.id
+        rolls, threshold = await self.db_handler.get_last_roll(userid)
+        if not rolls:
+            return await ctx.send("You have not yet made a roll.")
+
+        rolls = rolls.strip("[]").split(", ")
+        rolls = [int(roll) for roll in rolls]
+        dice = len([roll for roll in rolls if roll < threshold])
+        to_save = [roll for roll in rolls if roll >= threshold]
+
+        roll = sr3e.GeneralRoll(dice, threshold)
+        await roll.reroll(to_save)
+
+        await self.db_handler.save_roll(userid, roll.rolls, threshold)
+        embed = await build_embed(ctx, roll.title, roll.message,
+                                  footer=roll.footer)
+        return await ctx.send(embed=embed)
 
 
 def setup(bot):
