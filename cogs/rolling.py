@@ -15,6 +15,7 @@ from utils.embeds import build_embed
 class Rolling(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.db_handler = self.bot.db_handler.rolling
 
     @commands.command(aliases=['r'])
     async def roll(self, ctx, dice, threshold=4):
@@ -29,11 +30,13 @@ class Rolling(commands.Cog):
         except ValueError:
             return await ctx.send("Dice and threshold must be an integer")
 
-        message = await sr3e.general_roll(dice, threshold)
-        message = await build_embed(ctx, message['title'], message['message'],
-                                    footer=message['footer'])
+        roll = await sr3e.general_roll(dice, threshold)
+        userid = ctx.author.id
+        self.db_handler.save_roll(userid, roll.rolls, threshold)
+        embed = await build_embed(ctx, roll.title, roll.message,
+                                  footer=roll.footer)
 
-        await ctx.send(embed=message)
+        await ctx.send(embed=embed)
 
 
 def setup(bot):

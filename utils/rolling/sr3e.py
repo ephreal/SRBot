@@ -8,12 +8,69 @@ License.
 """
 
 from utils.rolling import base
-from discord import Colour
 
 
 """
 The rolling rules can be found on page 38 of the SR3E core rulebook.
 """
+
+
+class GeneralRoll():
+    """
+    An easy way to represent a roll.
+    """
+    def __init__(self, dice, threshold):
+        self.threshold = threshold
+        self.dice = dice
+        self.title = None
+        self.rolls = None
+        self.hits = None
+        self.glitch = False
+        self.critical_glitch = False
+        self.footer = "SR3e Roll"
+        self.message = ""
+
+    async def roll(self):
+        """
+        Rolls the dice and sets all the appropriate attributes
+        """
+
+        self.rolls = await roll(self.dice)
+        self.hits = await hits(self.rolls, self.threshold)
+        self.critical_glitch = await critical_glitch(self.rolls)
+        self.glitch = await glitch(self.rolls)
+
+        # Generate the message so it's ready to go.
+        await self.formatted_message()
+
+    async def formatted_message(self):
+        """
+        Creates and returns a formatted message.
+        """
+
+        descriptor = "Hit"
+        if self.hits > 1:
+            descriptor = "Hits"
+
+        self.message = f"""
+            ```md
+            <{descriptor}: {self.hits} >
+            ===================
+
+            > Results: {self.rolls}
+            > Target Number: {self.threshold}
+
+            Dice Rolled: {self.dice}
+            ===================
+
+            """
+
+        if self.critical_glitch:
+            self.message += "< Critical Glitch >\n"
+
+        self.message += "```"
+
+        self.message = self.message.replace("            ", "")
 
 
 async def general_roll(dice, threshold):
@@ -29,59 +86,9 @@ async def general_roll(dice, threshold):
         dict: {rolls, hits, glitch, critical_glitch, message}
     """
 
-    rolls = await roll(dice)
-    scs = await hits(rolls, threshold)
-
-    message = {
-        "title": None,
-        "rolls": rolls,
-        "hits": scs,
-        "glitch": await glitch(rolls),
-        "critical_glitch": await critical_glitch(rolls),
-        "footer": "SR3e Roll"
-    }
-
-    message['message'] = await formatted_message(dice, rolls, threshold, scs)
-
-    return message
-
-
-async def formatted_message(dice, rolls, threshold, hits):
-    """
-    Creates and returns a formatted message.
-
-    Parameters:
-        dice: int
-        rolls: [int, int,..., int]
-        threshold: int
-
-    Returns:
-        message: string
-    """
-
-    descriptor = "Hit"
-    if hits > 1:
-        descriptor = "Hits"
-
-    message = f"""
-        ```md
-        <{descriptor}: {hits} >
-        ===================
-
-        > Results: {rolls}
-        > Target Number: {threshold}
-
-        Dice Rolled: {dice}
-        ===================
-
-        """
-
-    if await critical_glitch(rolls):
-        message += "< Critical Glitch >\n"
-
-    message += "```"
-
-    return message.replace("        ", "")
+    diceroll = GeneralRoll(dice, threshold)
+    await diceroll.roll()
+    return diceroll
 
 
 async def roll(dice):

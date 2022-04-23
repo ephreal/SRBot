@@ -33,10 +33,10 @@ class RollingDB():
             [roll] or None
         """
 
-        cur = self.conn.cursor()
+        cur = self.connnection.cursor()
 
         cur.execute("""
-        SELECT roll from rolls where userid = ?
+        SELECT (roll, threshold) from rolls where userid = ?
         """, (userid,))
 
         self.connection.commit()
@@ -57,12 +57,12 @@ class RollingDB():
             None
         """
 
-        cur = self.conn.cursor()
+        cur = self.connection.cursor()
 
         roll = str(roll)
 
         cur.execute("""
-        insert or ignore into rolls (roll, threshold) values (?, ?)
-        """, (roll, threshold,))
+        insert or replace into rolls (userid, roll, threshold) values (?, ?, ?)
+        """, (userid, roll, threshold,))
 
         self.connection.commit()

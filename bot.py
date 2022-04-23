@@ -17,12 +17,17 @@ import logging
 from datetime import datetime
 from discord import Game
 from discord.ext import commands
+from utils.db import migration_handler
+from utils.db import db
 
 
 def build_bot(prefix, config):
 
     BOT = commands.Bot(command_prefix=prefix)
     BOT.sr_rules = config['optional_rolling_rules']
+
+    # Database handler
+    BOT.db_handler = db.DBHandler()
 
     # Configure the bot to log error messages properly
     BOT.logger = logging.getLogger()
@@ -39,6 +44,33 @@ def build_bot(prefix, config):
         # Setup user information here.
         pass
 
+    async def update_db():
+        """
+        Updates the database with the migration handler.
+
+        Updates are handled automatically with no user intervention.
+        """
+
+        handler = migration_handler.DBMigrationHandler("shadowrun.db")
+
+        handler.prepare_next_migration()
+
+        if handler.current_version != -1:
+            BOT.logger.critical("Updates are available for the bot database.")
+
+            while handler.current_version != -1:
+                version = f"Updating to version {handler.migration.version}"
+                desc = f"Description: {handler.migration.description}"
+                fixes = f"Issues if not upgrade: {handler.migration.breaks}"
+                BOT.logger.critical(version)
+                BOT.logger.critical(desc)
+                BOT.logger.critical(fixes)
+                handler.migrate()
+                handler.prepare_next_migration()
+            BOT.logger.critical("DB Updates have completed")
+        else:
+            BOT.logger.info("No database updates available")
+
     @BOT.event
     async def on_ready():
         """
@@ -46,9 +78,8 @@ def build_bot(prefix, config):
         Initializes any necessary variables and sets the played game to
         a message on how to get help.
         """
-        # Initialize needed variables
-        # initialize music players dict
-        BOT.players = {}
+
+        await update_db()
 
         # Uptime statistic
         BOT.boot_time = datetime.now()
