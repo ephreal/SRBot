@@ -8,6 +8,7 @@ License.
 """
 
 from utils.rolling import base
+from utils.rolling.parsers import Sr3RollParser
 
 
 """
@@ -15,20 +16,42 @@ The rolling rules can be found on page 38 of the SR3E core rulebook.
 """
 
 
-class GeneralRoll():
+class Roll():
     """
     An easy way to represent a roll.
     """
-    def __init__(self, dice, threshold):
-        self.threshold = threshold
-        self.dice = dice
+    def __init__(self, *to_parse):
+        self.parser = Sr3RollParser()
+        parsed = self.parser.parse_args(to_parse)
+
+        # Used to determine which kind of roll this is later
+        self.roll_type = None
+
+        self.threshold = parsed.threshold
+        self.dice = parsed.dice
+
+        if parsed.help:
+            self.footer = "SR3e Roll Help"
+            self.roll_type = "help"
+        elif parsed.i:
+            self.footer = "SR3e Initiative Roll"
+            self.roll_type = "initiative"
+        elif parsed.open:
+            self.footer = "SR3e Open Test"
+            self.roll_type = "open"
+        else:
+            self.footer = "SR3e Roll"
+            self.roll_type = "general"
+
         self.title = None
         self.rolls = None
         self.hits = None
         self.glitch = False
         self.critical_glitch = False
-        self.footer = "SR3e Roll"
         self.message = ""
+        self.initiative = None
+        self.init_mod = parsed.m
+        self.note = parsed.note
 
     async def roll(self):
         """
@@ -60,6 +83,24 @@ class GeneralRoll():
 
         await self.formatted_message()
 
+    async def initiative_roll(self):
+        """
+        Rolls initiative.
+        """
+
+        self.rolls, self.initiative = await roll_initiative(self.dice,
+                                                            self.init_mod)
+        await self.format_initiative_message()
+
+    async def open_test(self):
+        """
+        Rolls an open test and formats the message accordingly.
+        """
+
+        self.rolls = await roll(self.dice)
+
+        await self.format_open_test()
+
     async def formatted_message(self):
         """
         Creates and returns a formatted message.
@@ -89,23 +130,56 @@ class GeneralRoll():
 
         self.message = self.message.replace("            ", "")
 
+    async def format_initiative_message(self):
+        """
+        Formats the initiative in an easy to read fashion.
+        """
 
-async def general_roll(dice, threshold):
-    """
-    Handles a general roll for SR3E and returns a dict with strings that can
-    be used to build messages with.
+        self.message = f"""
+            ```md
+            < Initiative {self.initiative}
+            ==============================
 
-    Parameters:
-        dice: int
-        threshold: int
+            > Rolls: {self.rolls}
+            > Modifier: {self.init_mod}
+            > Sum: {sum(self.rolls)} + {self.init_mod} = {self.initiative}
 
-    Returns:
-        dict: {rolls, hits, glitch, critical_glitch, message}
-    """
+            Dice Rolled: {self.dice}
+            ==============================
+            ```"""
 
-    diceroll = GeneralRoll(dice, threshold)
-    await diceroll.roll()
-    return diceroll
+        self.message = self.message.replace("            ", "")
+
+    async def format_help(self):
+        """
+        Formats a help message that can be returned to the user.
+        """
+
+        self.message = f"""
+        ```md
+        {self.parser.format_help()}
+        ```"""
+
+        self.message = self.message.replace("            ", "")
+        self.message = self.message.replace("        ", "")
+
+    async def format_open_test(self):
+        """
+        Formats an open test to return to the user.
+        """
+
+        self.message = f"""
+            ```md
+            < Threshold: {self.rolls[-1]} >
+            ===============================
+
+            > Rolls: {self.rolls}
+
+            Dice Rolled: {self.dice}
+            ===============================
+            ```"""
+
+        self.message = self.message.replace("            ", "")
 
 
 async def roll(dice):
@@ -161,7 +235,7 @@ async def roll_initiative(dice, modifier):
     """
 
     rolls = [await base.roll() for i in range(0, dice)]
-    return sum(rolls) + modifier
+    return [rolls, sum(rolls) + modifier]
 
 
 async def critical_glitch(rolls):

@@ -18,21 +18,27 @@ class Rolling(commands.Cog):
         self.db_handler = self.bot.db_handler.rolling
 
     @commands.command(aliases=['r'])
-    async def roll(self, ctx, dice, threshold=4):
+    async def roll(self, ctx, *args):
         """
         Rolls dice. If no version is specified, this will default to SR3
         rolling rules.
         """
 
-        try:
-            dice = int(dice)
-            threshold = int(threshold)
-        except ValueError:
-            return await ctx.send("Dice and threshold must be an integer")
+        roll = sr3e.Roll(*args)
+        print(roll.roll_type)
 
-        roll = await sr3e.general_roll(dice, threshold)
-        userid = ctx.author.id
-        await self.db_handler.save_roll(userid, roll.rolls, threshold)
+        if roll.roll_type == "help":
+            await roll.format_help()
+        if roll.roll_type == "initiative":
+            await roll.initaitive_roll()
+        if roll.roll_type == "open":
+            await roll.open_test()
+            print(roll.rolls)
+        elif roll.roll_type == "general":
+            await roll.roll()
+            userid = ctx.author.id
+            await self.db_handler.save_roll(userid, roll.rolls, roll.threshold)
+
         embed = await build_embed(ctx, roll.title, roll.message,
                                   footer=roll.footer)
 
@@ -54,7 +60,7 @@ class Rolling(commands.Cog):
         dice = len([roll for roll in rolls if roll < threshold])
         to_save = [roll for roll in rolls if roll >= threshold]
 
-        roll = sr3e.GeneralRoll(dice, threshold)
+        roll = sr3e.Roll(str(dice), str(threshold))
         await roll.reroll(to_save)
 
         await self.db_handler.save_roll(userid, roll.rolls, threshold)
